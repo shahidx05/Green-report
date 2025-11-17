@@ -1,21 +1,23 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const path = require("path");
 const connectDB = require("./config/db");
 
-// Load env vars
 dotenv.config();
 
-// Init express
 const app = express();
 
-// Middleware
-app.use(cors());
+const cors = require("cors");
+
+app.use(cors({
+  origin: "https://green-report.vercel.app",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB
 connectDB();
 
 // Routes

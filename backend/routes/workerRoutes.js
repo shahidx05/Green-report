@@ -11,9 +11,6 @@ const {
   updateReportStatusByWorker
 } = require("../controllers/workerController");
 
-// -----------------------------------------
-// 1️⃣ Worker: View all assigned reports
-// -----------------------------------------
 router.get(
   "/reports",
   auth,
@@ -21,15 +18,11 @@ router.get(
   getAllWorkerReports
 );
 
-// -----------------------------------------
-// 2️⃣ Worker: Update report status (Completed / Declined)
-// Uploads completion image if provided
-// -----------------------------------------
 router.put(
   "/update/:id",
   auth,
   workerOnly,
-  upload.single("image"),   // optional: worker uploads completion photo
+  upload.single("image"), 
   uploadImage,
   updateReportStatusByWorker
 );
