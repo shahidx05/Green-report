@@ -6,7 +6,7 @@ let baseURL = "";
 if (window.location.hostname === "localhost") {
   baseURL = "http://localhost:5000/api";  // Local backend
 } else {
-  baseURL = "https://green-report-backend.onrender.com/api"; // Deploy backend
+  baseURL = "https://green-report.onrender.com//api"; // Deploy backend
 }
 
 const api = axios.create({
