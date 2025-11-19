@@ -8,14 +8,27 @@ const app = express();
 
 const cors = require("cors");
 
+const allowedOrigins = [
+  "https://trash-trace.vercel.app",
+  "https://trash-trace.netlify.app/",  // your new frontend URL
+  "http://localhost:5173",            // Vite dev
+  "http://localhost:3000"             // CRA or other local dev
+];
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    return callback(null, true);  // Allow all origins temporarily
+    if (!origin) return callback(null, true);              // Postman, curl, mobile apps
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);                         // Allow listed origins
+    }
+    return callback(new Error("Not allowed by CORS"));     // Block others
   },
-  credentials: true
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  optionsSuccessStatus: 204
 }));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

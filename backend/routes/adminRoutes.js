@@ -8,7 +8,7 @@ const {
   createWorker,
   getAllReports,
   getAllWorkers,
-  updateReportStatus
+  updateReport
 } = require("../controllers/adminController");
 
 router.post("/create-worker", auth, adminOnly, createWorker);
@@ -17,6 +17,6 @@ router.get("/reports", auth, adminOnly, getAllReports);
 
 router.get("/workers", auth, adminOnly, getAllWorkers);
 
-router.put("/report/status/:id", auth, adminOnly, updateReportStatus);
+router.put("/report/update/:id", auth, adminOnly, updateReport);
 
 module.exports = router;

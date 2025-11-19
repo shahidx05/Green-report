@@ -1,18 +1,8 @@
-import axios from 'axios';
-
-// Create a central 'api' client
-let baseURL = "";
-
-if (window.location.hostname === "localhost") {
-  baseURL = "http://localhost:5000/api";  // Local backend
-} else {
-  baseURL = "https://green-report.onrender.com/api"; // Deploy backend
-}
+import axios from "axios";
 
 const api = axios.create({
-  baseURL,
+  baseURL: import.meta.env.VITE_API_URL,
 });
-
 /*
   Yeh "request interceptor" hai.
   Yeh aapke har API request ke saath aapka auth token (localStorage se)
@@ -58,4 +48,4 @@ export const updateWorkerReport = (reportId, formData) => api.put(`/worker/updat
 export const getAdminAllReports = () => api.get('/admin/reports');
 export const getAdminAllWorkers = () => api.get('/admin/workers');
 export const createWorker = (workerData) => api.post('/admin/create-worker', workerData);
-export const adminUpdateReport = (reportId, updateData) => api.put(`/admin/report/status/${reportId}`, updateData);
+export const adminUpdateReport = (reportId, updateData) => api.put(`/admin/report/update/${reportId}`, updateData);

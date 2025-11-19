@@ -30,29 +30,32 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-// --- Reverse Geocoding Helper ---
+// Helper: Reverse Geocoding
 const getAddressFromCoords = async (lat, lng) => {
   try {
     const res = await axios.get(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
     );
-    if (res.data && res.data.display_name) {
-      return res.data.display_name;
+    if (res.data) {
+        // Return both display name and address object (for city extraction)
+        return { 
+            displayName: res.data.display_name, 
+            addressParts: res.data.address 
+        };
     }
-    return "";
+    return null;
   } catch (err) {
     console.error("Address lookup failed:", err.message);
-    return ""; 
+    return null;
   }
 };
 
-// --- Map Controller Component ---
-// Handles map clicks and "FlyTo" animations
-function MapController({ onLocationSet, onAddressSet, centerLocation }) {
+// Map Controller Component
+function MapController({ onLocationSet, onAddressSet, onCitySet, centerLocation }) {
     const map = useMap();
     const [marker, setMarker] = useState(null);
 
-    // Handle manual map clicks
+    // Handle map clicks
     useMapEvents({
         async click(e) {
             const { lat, lng } = e.latlng;
@@ -60,16 +63,20 @@ function MapController({ onLocationSet, onAddressSet, centerLocation }) {
             onLocationSet({ lat, lng });
             
             const toastId = toast.loading('Fetching address...');
-            const address = await getAddressFromCoords(lat, lng);
+            const result = await getAddressFromCoords(lat, lng);
             toast.dismiss(toastId);
             
-            if (address) {
-              onAddressSet(address);
+            if (result) {
+              onAddressSet(result.displayName);
+              // Try to auto-fill city if found
+              const city = result.addressParts.city || result.addressParts.town || result.addressParts.village;
+              if (city) onCitySet(city);
+              toast.success('Address found!');
             }
         },
     });
 
-    // Update map view when centerLocation changes (e.g. via GPS)
+    // Fly to location when GPS button is clicked
     useEffect(() => {
         if (centerLocation) {
             map.flyTo([centerLocation.lat, centerLocation.lng], 15);
@@ -82,14 +89,14 @@ function MapController({ onLocationSet, onAddressSet, centerLocation }) {
 
 function SubmitReportPage() {
     const [description, setDescription] = useState('');
-    const [city, setCity] = useState('Joura'); 
-    const [address, setAddress] = useState(''); // Optional address
+    // --- FIX: City starts empty ---
+    const [city, setCity] = useState(''); 
+    const [address, setAddress] = useState('');
     const [severity, setSeverity] = useState('Low');
     const [image, setImage] = useState(null);
     
-    // Location state
     const [location, setLocation] = useState(null);
-    const [mapCenter, setMapCenter] = useState(null); // For auto-centering
+    const [mapCenter, setMapCenter] = useState(null); 
 
     const [imagePreview, setImagePreview] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -97,33 +104,45 @@ function SubmitReportPage() {
 
     const navigate = useNavigate();
 
-    // --- Auto-Detect Location on Mount ---
-    useEffect(() => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    const lat = latitude;
-                    const lng = longitude;
-                    
-                    // Set location state
-                    setLocation({ lat, lng });
-                    setMapCenter({ lat, lng }); // Trigger map flyTo
-
-                    // Auto-fill address
-                    const detectedAddress = await getAddressFromCoords(lat, lng);
-                    if (detectedAddress) {
-                        setAddress(detectedAddress);
-                        toast.success("Location detected & address filled!");
-                    }
-                },
-                (error) => {
-                    console.error("Geolocation error:", error);
-                    // Default fallback is handled by initial MapContainer center
-                }
-            );
+    // --- NEW: Manual GPS Fetch Function ---
+    const handleLocateMe = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser.");
+            return;
         }
-    }, []);
+
+        const toastId = toast.loading("Acquiring GPS location...");
+        
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                
+                // Update state to trigger map movement
+                setLocation({ lat: latitude, lng: longitude });
+                setMapCenter({ lat: latitude, lng: longitude });
+
+                // Fetch address
+                const result = await getAddressFromCoords(latitude, longitude);
+                toast.dismiss(toastId);
+                
+                if (result) {
+                    setAddress(result.displayName);
+                    // Auto-fill city from GPS data
+                    const detectedCity = result.addressParts.city || result.addressParts.town || result.addressParts.village;
+                    if (detectedCity) setCity(detectedCity);
+                    
+                    toast.success("Location found!");
+                } else {
+                    toast.success("Location found (Address unavailable)");
+                }
+            },
+            (error) => {
+                toast.dismiss(toastId);
+                console.error("Geolocation error:", error);
+                toast.error("Unable to retrieve location. Please enable GPS.");
+            }
+        );
+    };
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -134,7 +153,12 @@ function SubmitReportPage() {
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(submittedReportId);
+        const el = document.createElement('textarea');
+        el.value = submittedReportId;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
         toast.success('Report ID copied!');
     };
 
@@ -163,7 +187,7 @@ function SubmitReportPage() {
             });
 
             toast.dismiss(loadingToast);
-            toast.success('Report submitted!');
+            toast.success('Report submitted successfully!');
             setSubmittedReportId(response.data.reportId);
 
         } catch (error) {
@@ -230,7 +254,7 @@ function SubmitReportPage() {
                 >
                     <Card className="space-y-8 p-6 md:p-8">
                         
-                        {/* 1. Image Upload (Bigger & Better) */}
+                        {/* 1. Image Upload */}
                         <div>
                             <label className="block text-lg font-semibold text-gray-800 mb-3">
                                 1. Upload Photo <span className="text-red-500">*</span>
@@ -275,16 +299,24 @@ function SubmitReportPage() {
                             </label>
                         </div>
 
-                        {/* 2. Location (With "Locate Me") */}
+                        {/* 2. Location */}
                         <div>
                             <div className="flex justify-between items-end mb-3">
                                 <label className="block text-lg font-semibold text-gray-800">
                                     2. Location <span className="text-red-500">*</span>
                                 </label>
-                                {location && (
+                                {location ? (
                                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-mono">
                                         {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                                      </span>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleLocateMe} // --- BUTTON ACTION ---
+                                        className="text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100 font-medium flex items-center gap-1 transition-colors"
+                                    >
+                                        <FaLocationCrosshairs /> Auto-Detect Location
+                                    </button>
                                 )}
                             </div>
                             
@@ -294,31 +326,25 @@ function SubmitReportPage() {
                                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                                     <MapController 
                                         onLocationSet={setLocation} 
-                                        onAddressSet={setAddress} 
+                                        onAddressSet={setAddress}
+                                        onCitySet={setCity} // Auto-fill city
                                         centerLocation={mapCenter}
                                     />
                                 </MapContainer>
                                 
-                                {/* GPS Button overlay */}
+                                {/* Manual GPS Button overlay */}
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        navigator.geolocation.getCurrentPosition((pos) => {
-                                            setMapCenter({ 
-                                                lat: pos.coords.latitude, 
-                                                lng: pos.coords.longitude 
-                                            });
-                                        });
-                                    }}
-                                    className="absolute bottom-4 right-4 z-[400] bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 text-gray-700"
-                                    title="Use My Current Location"
+                                    onClick={handleLocateMe}
+                                    className="absolute bottom-4 right-4 z-[400] bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 text-gray-700 border border-gray-200"
+                                    title="Locate Me"
                                 >
-                                    <FaLocationCrosshairs className="w-6 h-6" />
+                                    <FaLocationCrosshairs className="w-6 h-6 text-blue-600" />
                                 </button>
 
                                 {!location && (
                                     <div className="absolute top-0 left-0 w-full bg-yellow-50/90 text-yellow-800 text-sm py-2 text-center z-[400] border-b border-yellow-200">
-                                        Tap map or use GPS button to pin location.
+                                        Tap map or click the GPS button to pin location.
                                     </div>
                                 )}
                             </div>
@@ -326,7 +352,7 @@ function SubmitReportPage() {
 
                         {/* 3. Details Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Address (Auto-filled) */}
+                            {/* Address */}
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Address <span className="text-green-600 text-xs font-normal">(Auto-Detected, Optional)</span>
@@ -348,7 +374,7 @@ function SubmitReportPage() {
                                     value={city}
                                     onChange={(e) => setCity(e.target.value)}
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none transition-all"
-                                    placeholder="e.g., Joura"
+                                    placeholder="Enter City"
                                     required
                                 />
                             </div>
@@ -375,7 +401,7 @@ function SubmitReportPage() {
                                 rows={3}
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none resize-none transition-all"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none resize-none transition-all"
                                 placeholder="Describe the waste issue..."
                             />
                         </div>

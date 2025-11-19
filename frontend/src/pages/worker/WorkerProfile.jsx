@@ -1,24 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react'; // --- UPDATED ---
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 // --- Imports FIXED --- 
-import { useAuth } from '../../hooks/useAuth.jsx'; // --- FIXED: Added .jsx
-import Navbar from '../../components/layout/Navbar.jsx'; // --- FIXED: Added .jsx
-import Card from '../../components/common/Card.jsx'; // --- FIXED: Added .jsx
+import { useAuth } from '../../hooks/useAuth.jsx'; 
+import { getMe } from '../../services/api.js'; // --- NEW IMPORT ---
+import Navbar from '../../components/layout/Navbar.jsx'; 
+import Card from '../../components/common/Card.jsx'; 
 
 import { 
   FaChevronLeft,
   FaEnvelope,
   FaCity,
   FaListUl,
-  FaCircleUser // FaUserCircle (FA5) -> FaCircleUser (FA6)
+  FaCircleUser 
 } from "react-icons/fa6";
 
 function WorkerProfile() {
   const { user } = useAuth();
+  const [profileData, setProfileData] = useState(user); // Local state for fresh data
 
-  if (!user) {
+  // --- NEW: Fetch fresh data on mount ---
+  useEffect(() => {
+    const fetchFreshData = async () => {
+      try {
+        const response = await getMe(); // Calls /api/auth/me
+        setProfileData(response.data); // Update local state with fresh DB data
+      } catch (error) {
+        console.error("Failed to refresh profile data", error);
+      }
+    };
+
+    fetchFreshData();
+  }, []);
+
+  // Fallback if user is null (shouldn't happen in protected route)
+  if (!profileData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p>Loading profile...</p>
@@ -48,8 +65,9 @@ function WorkerProfile() {
             <div className="flex flex-col items-center md:flex-row">
               <FaCircleUser className="h-24 w-24 md:h-32 md:w-32 text-gray-300" />
               <div className="mt-4 md:mt-0 md:ml-8 text-center md:text-left">
-                <h1 className="text-4xl font-bold text-gray-900">{user.name}</h1>
-                <p className="text-xl text-gray-600">{user.role}</p>
+                {/* Use profileData instead of user */}
+                <h1 className="text-4xl font-bold text-gray-900">{profileData.name}</h1>
+                <p className="text-xl text-gray-600">{profileData.role}</p>
               </div>
             </div>
 
@@ -62,14 +80,16 @@ function WorkerProfile() {
               <div className="p-4 bg-gray-50 rounded-md">
                 <p className="flex items-center text-gray-700">
                   <FaEnvelope className="h-5 w-5 text-gray-400 mr-3" />
-                  <strong>Email:</strong>&nbsp;{user.email}
+                  {/* Use profileData */}
+                  <strong>Email:</strong>&nbsp;{profileData.email}
                 </p>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-md">
                 <p className="flex items-center text-gray-700">
                   <FaCity className="h-5 w-5 text-gray-400 mr-3" />
-                  <strong>Assigned City:</strong>&nbsp;{user.city}
+                  {/* Use profileData */}
+                  <strong>Assigned City:</strong>&nbsp;{profileData.city}
                 </p>
               </div>
 
@@ -77,7 +97,8 @@ function WorkerProfile() {
                 <p className="flex items-center text-gray-700">
                   <FaListUl className="h-5 w-5 text-gray-400 mr-3" />
                   <strong>Pending Tasks:</strong>&nbsp;
-                  {user.pendingTaskCount || 0}
+                  {/* This will now show the FRESH count from the DB */}
+                  {profileData.pendingTaskCount || 0}
                 </p>
               </div>
 

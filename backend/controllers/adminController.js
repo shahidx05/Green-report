@@ -81,9 +81,18 @@ exports.getAllWorkers = async (req, res) => {
 // -----------------------------------------------------
 // 4️⃣ UPDATE REPORT STATUS (Admin manual override) - (IMPROVED)
 // -----------------------------------------------------
-exports.updateReportStatus = async (req, res) => {
+exports.updateReport = async (req, res) => {
   try {
-    const { status: newStatus, workerId: newWorkerId } = req.body;
+    // Extract all possible fields to update
+    const { 
+      status: newStatus, 
+      workerId: newWorkerId, 
+      description, 
+      severity, 
+      city, 
+      address 
+    } = req.body;
+    
     const reportId = req.params.id;
 
     const report = await Report.findById(reportId);
@@ -91,11 +100,17 @@ exports.updateReportStatus = async (req, res) => {
       return res.status(404).json({ message: "Report not found" });
     }
 
-    // --- Store old values for comparison ---
+    // --- Store old values for logic ---
     const oldStatus = report.status;
     const oldWorkerId = report.assignedWorker ? report.assignedWorker.toString() : null;
 
-    // --- Update the report ---
+    // --- 1. Update General Details (If provided) ---
+    if (description) report.description = description;
+    if (severity) report.severity = severity;
+    if (city) report.city = city;
+    if (address) report.address = address;
+
+    // --- 2. Update Status ---
     if (newStatus) {
       if (!["Pending", "Assigned", "Completed", "Declined"].includes(newStatus)) {
         return res.status(400).json({ message: "Invalid status value" });
@@ -103,42 +118,58 @@ exports.updateReportStatus = async (req, res) => {
       report.status = newStatus;
     }
     
+    // --- 3. Update Assignment ---
     if (newWorkerId) {
+      // If admin sends explicit workerId, assign them
       report.assignedWorker = newWorkerId;
-      report.status = "Assigned"; // Assigning a worker automatically sets status to Assigned
+      report.status = "Assigned"; 
+    } else if (newWorkerId === "") {
+       // If admin sends empty string, unassign worker
+       report.assignedWorker = null;
+       if (report.status === 'Assigned') report.status = 'Pending';
     }
 
     await report.save();
 
-    // --- (THE FIX) Update Worker Counts ---
+    // --- 4. Update Worker Counts Logic ---
     const finalWorkerId = report.assignedWorker ? report.assignedWorker.toString() : null;
     const finalStatus = report.status;
 
-    // 1. Check if a worker was *newly assigned* or *changed*
+    // A. Check if worker changed
     if (finalWorkerId && finalWorkerId !== oldWorkerId) {
-      // Add +1 to the new worker's count
+      // Increment new worker
       await User.findByIdAndUpdate(finalWorkerId, { $inc: { pendingTaskCount: 1 } });
-      // If there was an old worker, remove -1 from their count
+      // Decrement old worker (if existed)
       if (oldWorkerId) {
         await User.findByIdAndUpdate(oldWorkerId, { $inc: { pendingTaskCount: -1 } });
       }
+    } else if (!finalWorkerId && oldWorkerId) {
+      // Worker was removed
+      await User.findByIdAndUpdate(oldWorkerId, { $inc: { pendingTaskCount: -1 } });
     }
     
-    // 2. Check if a task was *completed* or *declined*
-    if (oldStatus === "Assigned" && (finalStatus === "Completed" || finalStatus === "Declined")) {
-      // Remove -1 from the (old) worker's count
-      if (oldWorkerId) {
-        await User.findByIdAndUpdate(oldWorkerId, { $inc: { pendingTaskCount: -1 } });
-      }
+    // B. Check if task completed/declined (decrement count)
+    // Only if worker didn't change (otherwise logic A handled it)
+    if (finalWorkerId === oldWorkerId && finalWorkerId) {
+       if (oldStatus === "Assigned" && (finalStatus === "Completed" || finalStatus === "Declined")) {
+          await User.findByIdAndUpdate(finalWorkerId, { $inc: { pendingTaskCount: -1 } });
+       }
+       // If re-opening a task
+       if ((oldStatus === "Completed" || oldStatus === "Declined") && finalStatus === "Assigned") {
+          await User.findByIdAndUpdate(finalWorkerId, { $inc: { pendingTaskCount: 1 } });
+       }
     }
+
+    // Return updated report with populated worker
+    const updatedReport = await Report.findById(reportId).populate("assignedWorker", "name email city");
 
     res.json({
       message: "Report updated successfully",
-      report
+      report: updatedReport
     });
 
   } catch (error) {
-    console.error("updateReportStatus Error:", error);
+    console.error("updateReport Error:", error);
     res.status(500).json({ message: "Failed to update report" });
   }
 };

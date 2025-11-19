@@ -2,23 +2,21 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-
-// --- Imports FIXED ---
-import { createWorker } from '../../services/api.js'; // .js extension
-import { FaSpinner, FaUserPlus } from 'react-icons/fa6'; // Using fa6
-import Button from '../../components/common/Button.jsx'; // <-- IMPORTED
+import { createWorker } from '../../services/api.js'; //
+import { FaSpinner, FaUserPlus } from 'react-icons/fa6';
+import Button from '../../components/common/Button.jsx'; //
+import Card from '../../components/common/Card.jsx'; //
 
 function AdminCreateWorker() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [city, setCity] = useState('');
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', city: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const handleChange = (e) => setFormData({ ...formData, [e.target.id]: e.target.value });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !email || !password || !city) {
+    if (!formData.name || !formData.email || !formData.password || !formData.city) {
       return toast.error("All fields are required.");
     }
 
@@ -26,97 +24,84 @@ function AdminCreateWorker() {
     const loadingToast = toast.loading("Creating worker...");
 
     try {
-      const workerData = { name, email, password, city };
-      // /api/admin/create-worker call karein
-      await createWorker(workerData);
-      
+      await createWorker(formData);
       toast.dismiss(loadingToast);
       toast.success("Worker created successfully!");
-      navigate('/admin/workers'); // Worker list par redirect karein
-
+      navigate('/admin/workers');
     } catch (error) {
       setLoading(false);
       toast.dismiss(loadingToast);
-      console.error("Create worker error:", error);
-      // The backend may return the specific error message
       toast.error(error.response?.data?.message || "Failed to create worker.");
     }
   };
 
   return (
-    <motion.div 
-      // We could replace this with <Card> later, but keeping as is for now
-      className="bg-white p-6 rounded-lg shadow-lg"
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Worker</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    // --- FIX: 'max-w-lg' (Wider) and removed 'mt-10' (No top margin) ---
+    <Card className="max-w-lg mx-auto p-8 shadow-xl border border-gray-100 rounded-2xl bg-white">
+      <div className="text-center mb-8">
+        <div className="h-16 w-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-sm">
+          <FaUserPlus />
+        </div>
+        <h2 className="text-2xl font-extrabold text-gray-900">Register New Worker</h2>
+        {/* <p className="text-gray-500 mt-1">Add a new member to the sanitation team.</p> */}
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-4 py-3 mt-1 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-            required
+          <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
+          <input 
+            id="name" 
+            type="text" 
+            value={formData.name} 
+            onChange={handleChange} 
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50 focus:bg-white transition-all" 
+            placeholder="e.g. Rahul Kumar" 
+            required 
           />
         </div>
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 mt-1 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-            required
+          <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
+          <input 
+            id="email" 
+            type="email" 
+            value={formData.email} 
+            onChange={handleChange} 
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50 focus:bg-white transition-all" 
+            placeholder="e.g. rahul@example.com" 
+            required 
           />
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 mt-1 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-            required
+          <label className="block text-sm font-bold text-gray-700 mb-1">Password</label>
+          <input 
+            id="password" 
+            type="password" 
+            value={formData.password} 
+            onChange={handleChange} 
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50 focus:bg-white transition-all" 
+            placeholder="••••••••" 
+            required 
           />
         </div>
         <div>
-          <label htmlFor="city" className="block text-sm font-medium text-gray-700">Assigned City</label>
-          <input
-            id="city"
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="w-full px-4 py-3 mt-1 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-            required
+          <label className="block text-sm font-bold text-gray-700 mb-1">Assigned City</label>
+          <input 
+            id="city" 
+            type="text" 
+            value={formData.city} 
+            onChange={handleChange} 
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-gray-50 focus:bg-white transition-all" 
+            placeholder="e.g. Gwalior" 
+            required 
           />
         </div>
-        <div>
-          {/* Submit Button - REFACTORED */}
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              type="submit"
-              disabled={loading}
-              variant="primary"
-              size="lg"
-              className="w-full flex justify-center items-center shadow-lg"
-            >
-              {loading ? (
-                <FaSpinner className="animate-spin mr-2" />
-              ) : (
-                <FaUserPlus className="mr-2" />
-              )}
-              {loading ? 'Creating...' : 'Create Worker Account'}
-            </Button>
-          </motion.div>
+        <div className="pt-4">
+          <Button type="submit" disabled={loading} variant="primary" size="lg" className="w-full py-3 text-lg shadow-lg">
+            {loading ? <FaSpinner className="animate-spin mr-2" /> : "Create Account"}
+          </Button>
         </div>
       </form>
-    </motion.div>
+    </Card>
   );
 }
 
